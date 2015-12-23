@@ -1,14 +1,21 @@
 #![cfg(feature = "rblas")]
 
 extern crate rblas;
+extern crate num;
 #[macro_use] extern crate ndarray;
 
 use rblas::Gemm;
 use rblas::attribute::Transpose;
 
+use num::Float;
+
 use ndarray::{
     OwnedArray,
+    ArrayView,
+    ArrayViewMut,
     arr2,
+    Ix,
+    ShapeError
 };
 
 use ndarray::blas::AsBlas;
@@ -119,4 +126,41 @@ fn as_blas() {
         assert!(b.blas_view_mut_checked().is_ok());
         b.blas_view_mut();
     }
+}
+
+type Ix2 = (Ix, Ix);
+fn dot<F>(mut a: ArrayView<F, Ix2>, mut b: ArrayView<F, Ix2>,
+          c: &mut ArrayViewMut<F, Ix2>) -> Result<(), ShapeError>
+    where F: Gemm + Float,
+{
+    let at = Transpose::NoTrans;
+    let bt = Transpose::NoTrans;
+
+    let ba = try!(a.blas_view_checked());
+    let bb = try!(b.blas_view_checked());
+    let mut bc = try!(c.blas_view_mut_checked());
+    F::gemm(&F::one(),
+            at, &ba,
+            bt, &bb,
+            &F::zero(), &mut bc);
+    Ok(())
+}
+
+#[test]
+fn test_dot() {
+    let mut a = arr2(&[[1., 2.],
+                       [0., 3.]]);
+
+    let mut b = a.clone();
+    let mut res = a.clone();
+    res.assign_scalar(&0.);
+
+    dot(a.view(), b.view(), &mut res.view_mut()).unwrap();
+    println!("{:?}", res);
+
+    a.swap_axes(0, 1);
+    res.assign_scalar(&0.);
+
+    let result = dot(a.view(), b.view(), &mut res.view_mut());
+    assert!(result.is_err());
 }
