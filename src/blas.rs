@@ -58,6 +58,7 @@ use self::rblas::{
 };
 use super::{
     ArrayBase,
+    ArrayView,
     ArrayViewMut,
     Ix, Ixs,
     ShapeError,
@@ -69,7 +70,6 @@ use super::{
 };
 
 
-/*
 /// ***Requires `features = "rblas"`***
 pub struct BlasArrayView<'a, A: 'a, D>(ArrayView<'a, A, D>);
 impl<'a, A, D: Copy> Copy for BlasArrayView<'a, A, D> { }
@@ -78,7 +78,6 @@ impl<'a, A, D: Clone> Clone for BlasArrayView<'a, A, D> {
         BlasArrayView(self.0.clone())
     }
 }
-*/
 
 /// ***Requires `features = "rblas"`***
 pub struct BlasArrayViewMut<'a, A: 'a, D>(ArrayViewMut<'a, A, D>);
@@ -108,11 +107,9 @@ impl<S, D> ArrayBase<S, D>
     }
 }
 
-/*
 impl<'a, A, D> ArrayView<'a, A, D>
     where D: Dimension,
 {
-    /// ***Requires `features = "rblas"`***
     fn into_matrix(self) -> Result<BlasArrayView<'a, A, D>, ShapeError>
     {
         if self.dim.ndim() > 1 {
@@ -122,7 +119,6 @@ impl<'a, A, D> ArrayView<'a, A, D>
         Ok(BlasArrayView(self))
     }
 }
-*/
 
 impl<'a, A, D> ArrayViewMut<'a, A, D>
     where D: Dimension,
@@ -165,6 +161,26 @@ pub trait AsBlas<A, S, D> {
               A: Clone
     {
         self.blas_checked().unwrap()
+    }
+
+    /// Return a read-only array view implementing Vector (1D) or Matrix (2D)
+    /// traits.
+    ///
+    /// The array must already be in a blas compatible layout: its innermost
+    /// dimension must be contiguous.
+    ///
+    /// **Errors** if any dimension is larger than `c_int::MAX`.<br>
+    /// **Errors** if the inner dimension is not contiguous.
+    fn blas_view_checked(&self) -> Result<BlasArrayView<A, D>, ShapeError>
+        where S: Data;
+
+    /// Equivalent to `.blas_view_checked().unwrap()`
+    ///
+    /// **Panics** if there was a an error in `.blas_view_checked()`.
+    fn blas_view(&self) -> BlasArrayView<A, D>
+        where S: Data,
+    {
+        self.blas_view_checked().unwrap()
     }
 
     /// Return a read-write array view implementing Vector (1D) or Matrix (2D)
@@ -221,14 +237,16 @@ impl<A, S, D> AsBlas<A, S, D> for ArrayBase<S, D>
         self.view_mut().into_matrix_mut()
     }
 
+    fn blas_view_checked(&self) -> Result<BlasArrayView<A, D>, ShapeError>
+        where S: Data
+    {
+        self.view().into_matrix()
+    }
+
     fn blas_view_mut_checked(&mut self) -> Result<BlasArrayViewMut<A, D>, ShapeError>
         where S: DataMut,
     {
-        try!(self.size_check());
-        if !self.is_inner_contiguous() {
-            return Err(ShapeError::IncompatibleLayout);
-        }
-        Ok(BlasArrayViewMut(self.view_mut()))
+        self.view_mut().into_matrix_mut()
     }
 
     /*
@@ -244,14 +262,14 @@ impl<A, S, D> AsBlas<A, S, D> for ArrayBase<S, D>
     */
 }
 
-/*
+/// **Panics** if `as_mut_ptr` is called on a read-only view.
 impl<'a, A> Vector<A> for BlasArrayView<'a, A, Ix> {
     fn len(&self) -> c_int {
         self.0.len() as c_int
     }
 
     fn as_ptr(&self) -> *const A {
-        self.0.ptr as *const _
+        self.0.ptr
     }
 
     fn as_mut_ptr(&mut self) -> *mut A {
@@ -263,7 +281,6 @@ impl<'a, A> Vector<A> for BlasArrayView<'a, A, Ix> {
         self.0.strides as c_int
     }
 }
-*/
 
 impl<'a, A> Vector<A> for BlasArrayViewMut<'a, A, Ix> {
     fn len(&self) -> c_int {
@@ -284,14 +301,20 @@ impl<'a, A> Vector<A> for BlasArrayViewMut<'a, A, Ix> {
     }
 }
 
-/*
+/// **Panics** if `as_mut_ptr` is called on a read-only view.
 impl<'a, A> Matrix<A> for BlasArrayView<'a, A, (Ix, Ix)> {
     fn rows(&self) -> c_int {
-        self.0.dim().1 as c_int
+        self.0.dim().0 as c_int
     }
 
     fn cols(&self) -> c_int {
-        self.0.dim().0 as c_int
+        self.0.dim().1 as c_int
+    }
+
+    // leading dimension == stride between each row
+    fn lead_dim(&self) -> c_int {
+        debug_assert!(self.cols() <= 1 || self.0.strides()[1] == 1);
+        self.0.strides()[0] as c_int
     }
 
     fn as_ptr(&self) -> *const A {
@@ -302,7 +325,6 @@ impl<'a, A> Matrix<A> for BlasArrayView<'a, A, (Ix, Ix)> {
         panic!("BlasArrayView is not mutable");
     }
 }
-*/
 
 impl<'a, A> Matrix<A> for BlasArrayViewMut<'a, A, (Ix, Ix)> {
     fn rows(&self) -> c_int {

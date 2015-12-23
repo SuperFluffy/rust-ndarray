@@ -72,11 +72,11 @@ fn strided_view() {
 
     // matrix multiplication, strided
     let mut a2 = a.clone();
-    let mut aprim = a2.slice_mut(s![0..12, 0..11]);
+    let aprim = a2.view().slice(s![0..12, 0..11]);
     let mut b = ndarray::linalg::eye(aprim.shape()[1]);
     let mut res = OwnedArray::zeros(aprim.dim());
     Gemm::gemm(&1.,
-               Transpose::NoTrans, &aprim.blas_view_mut_checked().unwrap(),
+               Transpose::NoTrans, &aprim.blas_view(),
                Transpose::NoTrans, &b.blas(),
                &0., &mut res.blas());
     assert_eq!(res, aprim);
@@ -88,9 +88,9 @@ fn strided_view() {
     let mut res = arr2(&[[0., 0., 0.]]);
     res.swap_axes(0, 1);
     Gemm::gemm(&1.,
-               Transpose::NoTrans, &a3.blas_view_mut_checked().unwrap(),
+               Transpose::NoTrans, &a3.blas_view_mut(),
                Transpose::NoTrans, &b.blas(),
-               &0., &mut res.blas_view_mut_checked().unwrap());
+               &0., &mut res.blas_view_mut());
     assert_eq!(res, a3);
 }
 
