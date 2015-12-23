@@ -99,8 +99,8 @@ impl<S, D> ArrayBase<S, D>
     }
 
     fn contiguous_check(&self) -> Result<(), ShapeError> {
-        // FIXME: handle transposed
-        if self.dim.ndim() <= 1 || self.strides().last().cloned() == Some(1) {
+        // FIXME: handle transposed?
+        if self.is_inner_contiguous() {
             Ok(())
         } else {
             Err(ShapeError::IncompatibleLayout)
@@ -152,19 +152,39 @@ pub trait AsBlas<A, S, D> {
     /// access to update the layout either way. Breaks sharing if the array is
     /// an `Array`.
     ///
-    /// **Errors:** Produces an error if any dimension is larger than `c_int::MAX`.
+    /// **Errors** if any dimension is larger than `c_int::MAX`.
     fn blas_checked(&mut self) -> Result<BlasArrayViewMut<A, D>, ShapeError>
         where S: DataOwned + DataMut,
               A: Clone;
 
     /// Equivalent to `.blas_checked().unwrap()`
     ///
-    /// **Panics** if there was a an error in `blas_checked`.
+    /// **Panics** if there was a an error in `.blas_checked()`.
     fn blas(&mut self) -> BlasArrayViewMut<A, D>
         where S: DataOwned<Elem=A> + DataMut,
               A: Clone
     {
         self.blas_checked().unwrap()
+    }
+
+    /// Return a read-write array view implementing Vector (1D) or Matrix (2D)
+    /// traits.
+    ///
+    /// The array must already be in a blas compatible layout: its innermost
+    /// dimension must be contiguous.
+    ///
+    /// **Errors** if any dimension is larger than `c_int::MAX`.<br>
+    /// **Errors** if the inner dimension is not contiguous.
+    fn blas_view_mut_checked(&mut self) -> Result<BlasArrayViewMut<A, D>, ShapeError>
+        where S: DataMut;
+
+    /// Equivalent to `.blas_view_mut_checked().unwrap()`
+    ///
+    /// **Panics** if there was a an error in `.blas_view_mut_checked()`.
+    fn blas_view_mut(&mut self) -> BlasArrayViewMut<A, D>
+        where S: DataMut,
+    {
+        self.blas_view_mut_checked().unwrap()
     }
     /*
 
@@ -192,13 +212,23 @@ impl<A, S, D> AsBlas<A, S, D> for ArrayBase<S, D>
         match self.dim.ndim() {
             0 | 1 => { }
             2 => {
-                if self.strides()[1] != 1 {
+                if !self.is_inner_contiguous() {
                     self.ensure_standard_layout();
                 }
             }
             _n => self.ensure_standard_layout(),
         }
         self.view_mut().into_matrix_mut()
+    }
+
+    fn blas_view_mut_checked(&mut self) -> Result<BlasArrayViewMut<A, D>, ShapeError>
+        where S: DataMut,
+    {
+        try!(self.size_check());
+        if !self.is_inner_contiguous() {
+            return Err(ShapeError::IncompatibleLayout);
+        }
+        Ok(BlasArrayViewMut(self.view_mut()))
     }
 
     /*
@@ -285,7 +315,7 @@ impl<'a, A> Matrix<A> for BlasArrayViewMut<'a, A, (Ix, Ix)> {
 
     // leading dimension == stride between each row
     fn lead_dim(&self) -> c_int {
-        debug_assert_eq!(self.0.strides()[1], 1);
+        debug_assert!(self.cols() <= 1 || self.0.strides()[1] == 1);
         self.0.strides()[0] as c_int
     }
 
