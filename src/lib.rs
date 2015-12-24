@@ -1378,6 +1378,17 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         self.shape()[ndim - 1] <= 1 || self.strides()[ndim - 1] == 1
     }
 
+    #[cfg(feature = "rblas")]
+    /// Return `true` if the outermost dimension is contiguous (includes
+    /// the special cases of 0 or 1 length in that axis).
+    fn is_outer_contiguous(&self) -> bool {
+        let ndim = self.ndim();
+        if ndim == 0 {
+            return true;
+        }
+        self.shape()[0] <= 1 || self.strides()[0] == 1
+    }
+
     /// Return the array’s data as a slice, if it is contiguous and
     /// the element order corresponds to the memory order. Return `None` otherwise.
     pub fn as_slice(&self) -> Option<&[A]> {
