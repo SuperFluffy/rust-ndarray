@@ -105,8 +105,10 @@ fn strided_view() {
 fn as_blas() {
     let mut a = OwnedArray::<f32, _>::zeros((4, 4));
     assert!(a.blas_view_mut_checked().is_ok());
+
+    // Handle transposed / outer dim contiguous
     a.swap_axes(0, 1);
-    assert!(a.blas_view_mut_checked().is_err());
+    assert!(a.blas_view_mut_checked().is_ok());
     a.swap_axes(0, 1);
 
     {
@@ -116,7 +118,7 @@ fn as_blas() {
         b.bvm(); // no panic
     }
     {
-        // inner dimension is not contig
+        // inner dimension is not contig is ok
         let mut b = a.slice_mut(s![.., ..;2]);
         assert!(b.blas_view_mut_checked().is_err());
     }
@@ -160,7 +162,13 @@ fn test_dot() {
 
     a.swap_axes(0, 1);
     res.assign_scalar(&0.);
+    b.swap_axes(0, 1);
+    res.swap_axes(0, 1);
 
     let result = dot(a.view(), b.view(), &mut res.view_mut());
-    assert!(result.is_err());
+    println!("{:?}", res);
+    assert_eq!(res, arr2(&[[1., 0.],
+                           [8., 9.]]));
+    assert!(result.is_ok());
+    //assert!(result.is_err());
 }

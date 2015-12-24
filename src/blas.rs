@@ -56,6 +56,8 @@ use self::rblas::{
     Matrix,
     Vector,
 };
+use self::rblas::attribute::Order;
+
 use super::{
     ArrayBase,
     ArrayView,
@@ -98,8 +100,10 @@ impl<S, D> ArrayBase<S, D>
     }
 
     fn contiguous_check(&self) -> Result<(), ShapeError> {
-        // FIXME: handle transposed?
-        if self.is_inner_contiguous() {
+        // don't need to be contiguous for 1D vectors
+        if self.ndim() <= 1 ||
+           self.is_inner_contiguous() ||
+           self.is_outer_contiguous() {
             Ok(())
         } else {
             Err(ShapeError::IncompatibleLayout)
@@ -112,9 +116,7 @@ impl<'a, A, D> ArrayView<'a, A, D>
 {
     fn into_matrix(self) -> Result<BlasArrayView<'a, A, D>, ShapeError>
     {
-        if self.dim.ndim() > 1 {
-            try!(self.contiguous_check());
-        }
+        try!(self.contiguous_check());
         try!(self.size_check());
         Ok(BlasArrayView(self))
     }
@@ -125,9 +127,7 @@ impl<'a, A, D> ArrayViewMut<'a, A, D>
 {
     fn into_matrix_mut(self) -> Result<BlasArrayViewMut<'a, A, D>, ShapeError>
     {
-        if self.dim.ndim() > 1 {
-            try!(self.contiguous_check());
-        }
+        try!(self.contiguous_check());
         try!(self.size_check());
         Ok(BlasArrayViewMut(self))
     }
@@ -232,7 +232,7 @@ impl<A, S, D> AsBlas<A, S, D> for ArrayBase<S, D>
         match self.dim.ndim() {
             0 | 1 => { }
             2 => {
-                if !self.is_inner_contiguous() {
+                if !self.is_inner_contiguous() && !self.is_outer_contiguous() {
                     self.ensure_standard_layout();
                 }
             }
@@ -317,8 +317,12 @@ impl<'a, A> Matrix<A> for BlasArrayView<'a, A, (Ix, Ix)> {
 
     // leading dimension == stride between each row
     fn lead_dim(&self) -> c_int {
-        debug_assert!(self.cols() <= 1 || self.0.strides()[1] == 1);
-        self.0.strides()[0] as c_int
+        debug_assert!(self.0.is_inner_contiguous() || self.0.is_outer_contiguous());
+        let index = match self.order() {
+            Order::RowMajor => 0,
+            Order::ColMajor => 1,
+        };
+        self.0.strides()[index] as c_int
     }
 
     fn as_ptr(&self) -> *const A {
@@ -327,6 +331,14 @@ impl<'a, A> Matrix<A> for BlasArrayView<'a, A, (Ix, Ix)> {
 
     fn as_mut_ptr(&mut self) -> *mut A {
         panic!("BlasArrayView is not mutable");
+    }
+
+    fn order(&self) -> Order {
+        if self.0.is_inner_contiguous() {
+            Order::RowMajor
+        } else {
+            Order::ColMajor
+        }
     }
 }
 
@@ -339,10 +351,14 @@ impl<'a, A> Matrix<A> for BlasArrayViewMut<'a, A, (Ix, Ix)> {
         self.0.dim().1 as c_int
     }
 
-    // leading dimension == stride between each row
+    // leading dimension == stride between each row / column (depending on order)
     fn lead_dim(&self) -> c_int {
-        debug_assert!(self.cols() <= 1 || self.0.strides()[1] == 1);
-        self.0.strides()[0] as c_int
+        debug_assert!(self.0.is_inner_contiguous() || self.0.is_outer_contiguous());
+        let index = match self.order() {
+            Order::RowMajor => 0,
+            Order::ColMajor => 1,
+        };
+        self.0.strides()[index] as c_int
     }
 
     fn as_ptr(&self) -> *const A {
@@ -351,5 +367,14 @@ impl<'a, A> Matrix<A> for BlasArrayViewMut<'a, A, (Ix, Ix)> {
 
     fn as_mut_ptr(&mut self) -> *mut A {
         self.0.ptr
+    }
+
+    fn order(&self) -> Order {
+        if self.0.is_inner_contiguous() {
+            Order::RowMajor
+        } else {
+            debug_assert!(self.0.is_outer_contiguous());
+            Order::ColMajor
+        }
     }
 }
