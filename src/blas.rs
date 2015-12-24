@@ -174,10 +174,12 @@ pub trait AsBlas<A, S, D> {
     fn blas_view_checked(&self) -> Result<BlasArrayView<A, D>, ShapeError>
         where S: Data;
 
+    /// `bv` stands for **b**las **v**iew.
+    ///
     /// Equivalent to `.blas_view_checked().unwrap()`
     ///
     /// **Panics** if there was a an error in `.blas_view_checked()`.
-    fn blas_view(&self) -> BlasArrayView<A, D>
+    fn bv(&self) -> BlasArrayView<A, D>
         where S: Data,
     {
         self.blas_view_checked().unwrap()
@@ -194,10 +196,12 @@ pub trait AsBlas<A, S, D> {
     fn blas_view_mut_checked(&mut self) -> Result<BlasArrayViewMut<A, D>, ShapeError>
         where S: DataMut;
 
+    /// `bvm` stands for **b**las **v**iew **m**ut.
+    ///
     /// Equivalent to `.blas_view_mut_checked().unwrap()`
     ///
     /// **Panics** if there was a an error in `.blas_view_mut_checked()`.
-    fn blas_view_mut(&mut self) -> BlasArrayViewMut<A, D>
+    fn bvm(&mut self) -> BlasArrayViewMut<A, D>
         where S: DataMut,
     {
         self.blas_view_mut_checked().unwrap()

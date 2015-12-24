@@ -83,7 +83,7 @@ fn strided_view() {
     let mut b = ndarray::linalg::eye(aprim.shape()[1]);
     let mut res = OwnedArray::zeros(aprim.dim());
     Gemm::gemm(&1.,
-               Transpose::NoTrans, &aprim.blas_view(),
+               Transpose::NoTrans, &aprim.bv(),
                Transpose::NoTrans, &b.blas(),
                &0., &mut res.blas());
     assert_eq!(res, aprim);
@@ -95,9 +95,9 @@ fn strided_view() {
     let mut res = arr2(&[[0., 0., 0.]]);
     res.swap_axes(0, 1);
     Gemm::gemm(&1.,
-               Transpose::NoTrans, &a3.blas_view_mut(),
+               Transpose::NoTrans, &a3.bvm(),
                Transpose::NoTrans, &b.blas(),
-               &0., &mut res.blas_view_mut());
+               &0., &mut res.bvm());
     assert_eq!(res, a3);
 }
 
@@ -113,7 +113,7 @@ fn as_blas() {
         // increased row stride
         let mut b = a.slice_mut(s![..;2, ..]);
         assert!(b.blas_view_mut_checked().is_ok());
-        b.blas_view_mut(); // no panic
+        b.bvm(); // no panic
     }
     {
         // inner dimension is not contig
@@ -124,7 +124,7 @@ fn as_blas() {
         // inner dimension is length 1, is ok again
         let mut b = a.slice_mut(s![.., ..;4]);
         assert!(b.blas_view_mut_checked().is_ok());
-        b.blas_view_mut();
+        b.bvm();
     }
 }
 
