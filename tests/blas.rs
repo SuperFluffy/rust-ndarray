@@ -79,7 +79,7 @@ fn strided_view() {
 
     // matrix multiplication, strided
     let mut a2 = a.clone();
-    let aprim = a2.view().slice(s![0..12, 0..11]);
+    let aprim = a2.slice(s![0..12, 0..11]);
     let mut b = ndarray::linalg::eye(aprim.shape()[1]);
     let mut res = OwnedArray::zeros(aprim.dim());
     Gemm::gemm(&1.,
