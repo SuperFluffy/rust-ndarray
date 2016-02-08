@@ -658,3 +658,9 @@ fn deny_wraparound_reshape() {
     let five = OwnedArray::<f32, _>::zeros(5);
     let _five_large = five.into_shape((3, 7, 29, 36760123, 823996703)).unwrap();
 }
+
+#[test]
+fn reshape_owned() {
+    let a = OwnedArray::from_iter(0..28).reshape((2,7,2));
+    assert_eq!(a.shape(), &[2,7,2]);
+}

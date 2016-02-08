@@ -1552,7 +1552,7 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
     /// );
     /// ```
     pub fn reshape<E>(&self, shape: E) -> ArrayBase<S, E>
-        where S: DataShared + DataOwned,
+        where S: DataClone + DataOwned,
               A: Clone,
               E: Dimension,
     {
@@ -1562,12 +1562,14 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         }
         // Check if contiguous, if not => copy all, else just adapt strides
         if self.is_standard_layout() {
-            let cl = self.clone();
-            ArrayBase {
-                data: cl.data,
-                ptr: cl.ptr,
-                strides: shape.default_strides(),
-                dim: shape,
+            unsafe {
+                let (data, ptr) = self.data.clone_with_ptr(self.ptr);
+                ArrayBase {
+                    data: data,
+                    ptr: ptr,
+                    strides: shape.default_strides(),
+                    dim: shape,
+                }
             }
         } else {
             let v = self.iter().map(|x| x.clone()).collect::<Vec<A>>();
